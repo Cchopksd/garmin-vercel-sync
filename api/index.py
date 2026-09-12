@@ -229,7 +229,20 @@ async def mcp_post(
         database = SupabaseREST(
             settings.supabase_url, settings.supabase_secret_key, settings.supabase_table
         )
-        result = tool_result(params["name"], arguments, database, settings.tz_name)
+        activities_database = SupabaseREST(
+            settings.supabase_url, settings.supabase_secret_key, "garmin_activities"
+        )
+        metrics_database = SupabaseREST(
+            settings.supabase_url, settings.supabase_secret_key, "garmin_metric_payloads"
+        )
+        result = tool_result(
+            params["name"],
+            arguments,
+            database,
+            settings.tz_name,
+            activities_database,
+            metrics_database,
+        )
         return JSONResponse({"jsonrpc": "2.0", "id": message_id, "result": result})
     return JSONResponse(_mcp_error(message_id, -32601, "Method not found"), status_code=404)
 

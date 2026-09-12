@@ -28,6 +28,22 @@ Upstash Redis
 
 `GET /api/data` อ่าน summary, `GET /api/activities` อ่าน workout, และ `GET /api/metric-payloads?metric_type=heart_rate` อ่านข้อมูลดิบแบบละเอียด (ทุก endpoint ต้องส่ง `Authorization: Bearer $CRON_SECRET`).
 
+## MCP tools for AI
+
+MCP server ใช้ endpoint `/mcp` และ OAuth ของ Supabase (กำหนด `MCP_ALLOWED_EMAIL` เพื่อจำกัด Google account ที่เข้าถึงได้) โดยทุก tool เป็น read-only:
+
+| Tool | ข้อมูลที่ AI อ่านได้ |
+| --- | --- |
+| `get_garmin_data` | daily health summary ตาม period (`daily`, `30d`, `60d`, `90d`, `180d`, `360d`, `ytd`) |
+| `get_garmin_day` | daily health summary ของวันเดียว |
+| `get_garmin_activities` | workouts: sport, duration, distance, HR, cadence และ training effect |
+| `get_garmin_metric_payload` | detailed feed ที่เลือกหนึ่งชนิด เช่น heart rate, sleep, HRV, stress หรือ Body Battery |
+| `get_garmin_trends` | ค่าเฉลี่ยใน period เทียบกับ period ก่อนหน้าที่มีความยาวเท่ากัน |
+| `get_garmin_readiness` | compact recovery view: sleep, HRV, resting HR, stress, Body Battery และ training readiness |
+| `get_garmin_alerts` | alerts จาก rule-based thresholds และ baseline 28 วันก่อนหน้า |
+
+Tools ไม่เปิด OAuth token, generic Supabase query หรือ endpoint ที่เขียนข้อมูล. `get_garmin_metric_payload` จำกัดให้เลือก `metric_type` ที่ระบบบันทึกไว้และระบุ period เสมอ.
+
 ข้อจำกัด: wrapper แบบ unofficial นี้ไม่มี endpoint ECG ที่เชื่อถือได้ และ Garmin อาจไม่ส่ง skin temperature, Pulse Ox แบบ all-day, หรือ training metric บางรายการตามรุ่นอุปกรณ์/ภูมิภาค/การตั้งค่า ดังนั้นระบบจะเก็บค่าที่ API ส่งจริงและปล่อยเป็น `null` เมื่อไม่มีข้อมูล ไม่สร้างค่าขึ้นมาเอง.
 
 > `garminconnect` เป็น unofficial Garmin Connect API wrapper ไม่ใช่ Garmin Health API อย่างเป็นทางการ Endpoint อาจเปลี่ยนในอนาคต
