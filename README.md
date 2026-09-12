@@ -36,10 +36,10 @@ The MCP server uses `/mcp` and Supabase OAuth. Set `MCP_ALLOWED_EMAIL` to restri
 
 | Tool | Data available to the AI |
 | --- | --- |
-| `get_garmin_data` | Daily health summaries for a period (`daily`, `30d`, `60d`, `90d`, `180d`, `360d`, `ytd`). |
+| `get_garmin_data` | Daily health summaries for a named period, a single `date`, or `start_date` + `end_date`. |
 | `get_garmin_day` | Daily health summary for a single date. |
-| `get_garmin_activities` | Workouts: sport, duration, distance, heart rate, cadence, and training effect. |
-| `get_garmin_metric_payload` | One selected detailed feed, such as heart rate, sleep, HRV, stress, or Body Battery. |
+| `get_garmin_activities` | Workouts: sport, duration, distance, heart rate, cadence, and training effect. Accepts a named period, a single `date`, or `start_date` + `end_date`, plus an optional exact `activity_type` filter. |
+| `get_garmin_metric_payload` | One selected detailed feed, such as heart rate, sleep, HRV, stress, or Body Battery, for a named period, single date, or custom date range. |
 | `get_garmin_trends` | Period averages compared with the immediately preceding period of equal length. |
 | `get_garmin_readiness` | Compact recovery view: sleep, HRV, resting HR, stress, Body Battery, and training readiness. |
 | `get_garmin_alerts` | Rule-based alerts using fixed thresholds and the preceding 28-day baseline. |

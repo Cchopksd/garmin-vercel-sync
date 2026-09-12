@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta
 from typing import Any, Protocol
 
-from .date_ranges import PERIODS, period_window
+from .date_ranges import PERIODS, period_window, requested_window
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 
@@ -49,7 +49,7 @@ TREND_FIELDS = (
 TOOLS = [
     {
         "name": "get_garmin_data",
-        "description": "Read Garmin daily health data for a named calendar period.",
+        "description": "Read Garmin daily health data for a named period, one date, or an inclusive date range.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -57,9 +57,11 @@ TOOLS = [
                     "type": "string",
                     "enum": sorted(PERIODS),
                     "description": "Calendar period ending today in Asia/Bangkok.",
-                }
+                },
+                "date": {"type": "string", "format": "date"},
+                "start_date": {"type": "string", "format": "date"},
+                "end_date": {"type": "string", "format": "date"},
             },
-            "required": ["period"],
             "additionalProperties": False,
         },
         "annotations": {"readOnlyHint": True},
@@ -79,25 +81,33 @@ TOOLS = [
     },
     {
         "name": "get_garmin_activities",
-        "description": "Read individual Garmin workouts for a named calendar period.",
+        "description": "Read Garmin workouts for a named period, one date, or an inclusive date range. Optionally filter by activity type such as running.",
         "inputSchema": {
             "type": "object",
-            "properties": {"period": {"type": "string", "enum": sorted(PERIODS)}},
-            "required": ["period"],
+            "properties": {
+                "period": {"type": "string", "enum": sorted(PERIODS)},
+                "date": {"type": "string", "format": "date"},
+                "start_date": {"type": "string", "format": "date"},
+                "end_date": {"type": "string", "format": "date"},
+                "activity_type": {"type": "string", "description": "Exact Garmin activity type, for example running or strength_training."},
+            },
             "additionalProperties": False,
         },
         "annotations": {"readOnlyHint": True},
     },
     {
         "name": "get_garmin_metric_payload",
-        "description": "Read one detailed Garmin metric feed for a bounded calendar period.",
+        "description": "Read one detailed Garmin metric feed for a named period, one date, or an inclusive date range.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "metric_type": {"type": "string", "enum": list(METRIC_TYPES)},
                 "period": {"type": "string", "enum": sorted(PERIODS)},
+                "date": {"type": "string", "format": "date"},
+                "start_date": {"type": "string", "format": "date"},
+                "end_date": {"type": "string", "format": "date"},
             },
-            "required": ["metric_type", "period"],
+            "required": ["metric_type"],
             "additionalProperties": False,
         },
         "annotations": {"readOnlyHint": True},
@@ -161,6 +171,16 @@ def _selected_date(arguments: dict[str, Any], tz_name: str) -> date:
     return date.fromisoformat(raw_date)
 
 
+def _requested_window(arguments: dict[str, Any], tz_name: str) -> tuple[str | None, date, date]:
+    return requested_window(
+        tz_name=tz_name,
+        period=arguments.get("period"),
+        selected_date=arguments.get("date"),
+        start_date=arguments.get("start_date"),
+        end_date=arguments.get("end_date"),
+    )
+
+
 def _mean(rows: list[dict[str, Any]], field: str) -> float | None:
     values = [row[field] for row in rows if isinstance(row.get(field), (int, float))]
     return round(sum(values) / len(values), 2) if values else None
@@ -213,7 +233,7 @@ def tool_result(
 ) -> dict[str, Any]:
     try:
         if name == "get_garmin_data":
-            period, start, end = _period(arguments, tz_name)
+            period, start, end = _requested_window(arguments, tz_name)
             payload = {
                 "period": period,
                 "start_date": start.isoformat(),
@@ -229,16 +249,27 @@ def tool_result(
         elif name == "get_garmin_activities":
             if activities_database is None:
                 raise RuntimeError("Activity data is unavailable")
-            period, start, end = _period(arguments, tz_name)
+            period, start, end = _requested_window(arguments, tz_name)
             rows = activities_database.fetch_rows_by_date_column("calendar_date", start.isoformat(), end.isoformat())
-            payload = {"period": period, "start_date": start.isoformat(), "end_date": end.isoformat(), "rows": rows}
+            activity_type = arguments.get("activity_type")
+            if activity_type is not None:
+                if not isinstance(activity_type, str):
+                    raise ValueError("activity_type must be a string")
+                rows = [row for row in rows if row.get("activity_type") == activity_type]
+            payload = {
+                "period": period,
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "activity_type": activity_type,
+                "rows": rows,
+            }
         elif name == "get_garmin_metric_payload":
             if metrics_database is None:
                 raise RuntimeError("Detailed metric data is unavailable")
             metric_type = arguments.get("metric_type")
             if metric_type not in METRIC_TYPES:
                 raise ValueError("metric_type must be a supported Garmin metric feed")
-            period, start, end = _period(arguments, tz_name)
+            period, start, end = _requested_window(arguments, tz_name)
             rows = metrics_database.fetch_rows_by_date_column("calendar_date", start.isoformat(), end.isoformat())
             payload = {"metric_type": metric_type, "period": period, "start_date": start.isoformat(), "end_date": end.isoformat(), "rows": [row for row in rows if row.get("metric_type") == metric_type]}
         elif name == "get_garmin_trends":

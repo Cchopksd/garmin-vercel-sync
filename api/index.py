@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from garmin_vercel_sync.config import Settings
-from garmin_vercel_sync.date_ranges import PERIODS, period_window
+from garmin_vercel_sync.date_ranges import PERIODS, period_window, requested_window
 from garmin_vercel_sync.mcp_auth import MCPAuthError, validate_supabase_access_token
 from garmin_vercel_sync.mcp_protocol import TOOLS, initialize_result, tool_result
 from garmin_vercel_sync.supabase import SupabaseREST
@@ -116,16 +116,25 @@ def backfill(authorization: str | None = Header(default=None)) -> dict:
 
 @app.get("/api/data")
 def data(
-    period: str = Query(default="daily", description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    period: str | None = Query(default=None, description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    date: str | None = Query(default=None, description="One local calendar date (YYYY-MM-DD)"),
+    start_date: str | None = Query(default=None, description="Inclusive local start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(default=None, description="Inclusive local end date (YYYY-MM-DD)"),
     authorization: str | None = Header(default=None),
 ) -> dict:
-    """Read Garmin health rows for a local-calendar period from Supabase."""
+    """Read Garmin health rows by period, day, or inclusive custom date range."""
     settings = _settings()
     _authorize(authorization, settings.cron_secret)
     try:
-        start, end = period_window(period, settings.tz_name)
+        selected_period, start, end = requested_window(
+            tz_name=settings.tz_name,
+            period=period if period or date or start_date or end_date else "daily",
+            selected_date=date,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"period must be one of: {', '.join(sorted(PERIODS))}") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     database = SupabaseREST(
         settings.supabase_url,
@@ -134,7 +143,7 @@ def data(
     )
     rows = database.fetch_rows(start.isoformat(), end.isoformat())
     return {
-        "period": period,
+        "period": selected_period,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "row_count": len(rows),
@@ -144,40 +153,61 @@ def data(
 
 @app.get("/api/activities")
 def activities(
-    period: str = Query(default="daily", description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    period: str | None = Query(default=None, description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    date: str | None = Query(default=None, description="One local calendar date (YYYY-MM-DD)"),
+    start_date: str | None = Query(default=None, description="Inclusive local start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(default=None, description="Inclusive local end date (YYYY-MM-DD)"),
+    activity_type: str | None = Query(default=None, description="Exact Garmin activity type, such as running"),
     authorization: str | None = Header(default=None),
 ) -> dict:
-    """Read individual workouts, including Garmin's unmodified activity payload."""
+    """Read individual workouts by period, day, or inclusive custom date range."""
     settings = _settings()
     _authorize(authorization, settings.cron_secret)
     try:
-        start, end = period_window(period, settings.tz_name)
+        selected_period, start, end = requested_window(
+            tz_name=settings.tz_name,
+            period=period if period or date or start_date or end_date else "daily",
+            selected_date=date,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"period must be one of: {', '.join(sorted(PERIODS))}") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     rows = SupabaseREST(settings.supabase_url, settings.supabase_secret_key, "garmin_activities").fetch_rows_by_date_column(
         "calendar_date", start.isoformat(), end.isoformat()
     )
-    return {"period": period, "start_date": start.isoformat(), "end_date": end.isoformat(), "row_count": len(rows), "rows": rows}
+    if activity_type:
+        rows = [row for row in rows if row.get("activity_type") == activity_type]
+    return {"period": selected_period, "start_date": start.isoformat(), "end_date": end.isoformat(), "activity_type": activity_type, "row_count": len(rows), "rows": rows}
 
 
 @app.get("/api/metric-payloads")
 def metric_payloads(
-    period: str = Query(default="daily", description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    period: str | None = Query(default=None, description="daily, 30d, 60d, 90d, 180d, 360d, or ytd"),
+    date: str | None = Query(default=None, description="One local calendar date (YYYY-MM-DD)"),
+    start_date: str | None = Query(default=None, description="Inclusive local start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(default=None, description="Inclusive local end date (YYYY-MM-DD)"),
     metric_type: str | None = Query(default=None),
     authorization: str | None = Header(default=None),
 ) -> dict:
-    """Read lossless Garmin endpoint payloads, including intraday time-series."""
+    """Read detailed Garmin payloads by period, day, or inclusive custom date range."""
     settings = _settings()
     _authorize(authorization, settings.cron_secret)
     try:
-        start, end = period_window(period, settings.tz_name)
+        selected_period, start, end = requested_window(
+            tz_name=settings.tz_name,
+            period=period if period or date or start_date or end_date else "daily",
+            selected_date=date,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"period must be one of: {', '.join(sorted(PERIODS))}") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     database = SupabaseREST(settings.supabase_url, settings.supabase_secret_key, "garmin_metric_payloads")
     rows = database.fetch_rows_by_date_column("calendar_date", start.isoformat(), end.isoformat())
     if metric_type:
         rows = [row for row in rows if row.get("metric_type") == metric_type]
-    return {"period": period, "metric_type": metric_type, "start_date": start.isoformat(), "end_date": end.isoformat(), "row_count": len(rows), "rows": rows}
+    return {"period": selected_period, "metric_type": metric_type, "start_date": start.isoformat(), "end_date": end.isoformat(), "row_count": len(rows), "rows": rows}
 
 
 @app.get("/mcp")
