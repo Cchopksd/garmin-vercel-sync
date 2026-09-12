@@ -1,0 +1,17 @@
+.env
+.env.local
+.vercel/
+backfill-90d*.log
+*.egg-info/
+python-3.12.10-amd64.exe
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+secrets/
+data/
+.vercel/
+
+.vercel
+.env*

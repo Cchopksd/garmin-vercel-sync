@@ -1,0 +1,22 @@
+[project]
+name = "garmin-vercel-sync"
+version = "0.2.0"
+description = "Daily Garmin Connect health sync to Supabase on Vercel Hobby with Upstash token persistence."
+requires-python = "~=3.12.0"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "garminconnect==0.3.13",
+  "requests>=2.32,<3",
+  "tzdata>=2025.2,<2027",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<9", "uvicorn>=0.35,<1"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["garmin_vercel_sync*"]
+exclude = ["api*", "tests*"]

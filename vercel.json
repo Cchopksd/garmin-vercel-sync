@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/sync",
+      "schedule": "0 1 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/mcp",
+      "destination": "/api/oauth-protected-resource"
+    },
+    {
+      "source": "/oauth/consent",
+      "destination": "/api/consent"
+    }
+  ],
+  "functions": {
+    "api/*.py": {
+      "maxDuration": 300
+    }
+  }
+}

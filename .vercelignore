@@ -1,0 +1,10 @@
+.venv/
+.venv-py313-backup/
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+.env.local
+backfill-90d*.log
+kiramiz-f7e7b91e81d9.json
+python-3.12.10-amd64.exe
