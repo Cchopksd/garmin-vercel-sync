@@ -92,7 +92,9 @@ def sync(authorization: str | None = Header(default=None)) -> dict:
     settings = _settings()
     _authorize(authorization, settings.cron_secret)
     try:
-        return sync_recent(settings)
+        # Always refresh yesterday as Garmin may complete sleep/HRV data after
+        # the day has ended, even when SYNC_DAYS is configured as 1.
+        return sync_recent(settings, days=max(settings.sync_days, 2))
     except HTTPException:
         raise
     except Exception as exc:
